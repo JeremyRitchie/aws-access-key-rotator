@@ -94,7 +94,7 @@ def revoke_old_access_keys(secret_id, token, username):
                 VersionId = current_version
             )
             access_key_id = json.loads(resp['SecretString'])['access_key_id']
-            if len(access_key_id) > 0: # Check if key has any value to it. i.e this is not a fresh secret
+            if len(access_key_id) > 16: # Check if key has any value to it. i.e this is not a fresh secret
                 disable_key(access_key=access_key_id, username=username)
                 delete_key(access_key=access_key_id, username=username)
                 return
@@ -103,8 +103,8 @@ def disable_key(access_key, username):
     try:
         iam_client.update_access_key(UserName=username, AccessKeyId=access_key, Status="Inactive")
         logger.info(access_key + " has been disabled.")
-    except ClientError as e:
-        logger.error("The access key with id %s cannot be disabled - continuing" % access_key)
+    except Exception as e:
+        logger.error(f"Error disabling key {access_key} - continuing")
         sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key - error disabling key - {username} - {access_key} - {str(e)}")
 
 
@@ -112,8 +112,8 @@ def delete_key(access_key, username):
     try:
         iam_client.delete_access_key(UserName=username, AccessKeyId=access_key)
         logger.info(access_key + " has been deleted.")
-    except ClientError as e:
-        logger.error("The access key with id %s cannot be deleted - continuing" % access_key)
+    except Exception as e:
+        logger.error(f"Error deleting key {access_key} - continuing")
         sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key - error deleting key - {username} - {access_key} - {str(e)}")
 
 

@@ -1,10 +1,12 @@
 from aws_cdk import (
     Duration,
+    SecretValue,
     Stack,
     aws_ses as ses,
     aws_lambda as lambda_,
     aws_iam as iam,
     aws_sns as sns,
+    aws_secretsmanager as secretsmanager,
 )
 from constructs import Construct
 
@@ -13,7 +15,7 @@ class AwsAccessKeyRotatorStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-
+        # SES
         ses.EmailIdentity(
             self,
             "WorkIdentity",
@@ -26,6 +28,7 @@ class AwsAccessKeyRotatorStack(Stack):
             identity=ses.Identity.email("jeremyritchie1996@hotmail.com"),
         )
 
+        # SNS
         topic = sns.Topic(
             self,
             "FailureTopic",
@@ -40,11 +43,12 @@ class AwsAccessKeyRotatorStack(Stack):
             endpoint="jeremyritchie1996@hotmail.com"
         )
 
+        # Lambda
         lambda_role = iam.Role(
             self,
-            id="cdk-lambda-role",
+            id="lambdaRole",
             assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
-            role_name="cdk-lambda-role",
+            role_name="access-key-rotator-role",
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name(
                 "service-role/AWSLambdaBasicExecutionRole"
@@ -54,7 +58,7 @@ class AwsAccessKeyRotatorStack(Stack):
                 ),
             ],
         )
-        # Defines an AWS Lambda resource
+
         function = lambda_.Function(
             self,
             "lambda",
@@ -73,3 +77,21 @@ class AwsAccessKeyRotatorStack(Stack):
             "SecretsManagerPolicy",
             principal=iam.ServicePrincipal("secretsmanager.amazonaws.com"),
         )
+
+        users = ['jeremy.ritchie']
+        # Secrets
+        for user in users:
+            secret = secretsmanager.Secret(
+                self,
+                f"{user.replace('.','')}Secret",
+                secret_name=f"/access-key/{user}",
+                secret_object_value={
+                    "access_key_id": SecretValue.unsafe_plain_text("foo"),
+                    "secret_access_key": SecretValue.unsafe_plain_text("bar"),
+                }
+            )
+            secret.add_rotation_schedule(
+                 f"{user.replace('.','')}Rotation",
+                automatically_after=Duration.days(90),
+                rotation_lambda=function
+            )
