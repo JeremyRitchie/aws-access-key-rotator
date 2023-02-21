@@ -4,21 +4,23 @@ This is repo is intended to be widely reused as a solution to automatically rota
 
 Read more about this repo and how you can best use it here: https://jeremyritchie.com/posts/11/
 
-## Architecture
-
-![](/Secret-Rotation.png?raw=true)
-
-## Lambda Logic
-
-![](/secrets-manager-rotation-architecture.png?raw=true)
-
 ## Prerequisites
 
 * Python3
-* AWS CDK Toolkit (CLI)
+* AWS CDK Toolkit
   ```sh
   npm install -g aws-cdk
   ```
+## Architecture
+
+![](/secrets-manager-rotation-architecture.png?raw=true)
+
+## Lambda Logic
+
+![](/Secret-Rotation.png?raw=true)
+
+
+
 
 ## How to use
 
