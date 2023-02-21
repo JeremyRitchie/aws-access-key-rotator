@@ -4,13 +4,13 @@ import json
 import logging
 import sys, os
 
-iam_client = boto3.client('iam', region_name='ap-southeast-2')
-secrets_client = boto3.client('secretsmanager', region_name='ap-southeast-2')
-ses_client = boto3.client('ses', region_name='ap-southeast-2')
-sns_client = boto3.client('sns', region_name='ap-southeast-2')
+iam_client = boto3.client('iam')
+secrets_client = boto3.client('secretsmanager')
+ses_client = boto3.client('ses')
+sns_client = boto3.client('sns')
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+# Init of the logging module
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] - %(message)s', force=True)
 
 BODY = """
 <p>Username: {}<br />Email: {}</p>
@@ -24,11 +24,11 @@ def create_key(username):
         access_key_metadata = iam_client.create_access_key(UserName=username)
         access_key = access_key_metadata['AccessKey']['AccessKeyId']
         secret_key = access_key_metadata['AccessKey']['SecretAccessKey']
-        logger.info(access_key + " has been created.")
+        logging.info(access_key + " has been created.")
         return access_key, secret_key
     except ClientError as e:
         if e.response['Error']['Code'] == 'LimitExceededException':
-            logger.error("Too many Access Key Tokens!!")
+            logging.error("Too many Access Key Tokens!!")
             sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key: {username} - {str(e)}")
             raise e
         else:
@@ -42,7 +42,7 @@ def add_secret_version(secret_id, token, access_key, secret_key):
             ClientRequestToken=token,
             SecretString=secret,
             VersionStages=['AWSPENDING',])
-        logger.debug(resp)
+        logging.debug(resp)
     except secrets_client.exceptions.ResourceExistsException as e:
         sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key - adding secert version - {str(e)}")
         raise e
@@ -59,7 +59,7 @@ def test_secret(secret_id, token, username):
         import time
         time.sleep(10) # Allow time for key to activate (2x factor of safety)
         boto3.client('iam', aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key).list_access_keys(UserName=username)
-        logger.info("tests passed")
+        logging.info("tests passed")
     except Exception as e:
         print("Error: " + str(e))
         sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key - error testing key - {username} - {secret_id} - {str(e)}")
@@ -77,9 +77,9 @@ def rotate_secret_version(secret_id, token):
                 RemoveFromVersionId=previous_secret_version,
                 MoveToVersionId=token
             )
-            logger.info("Success in rotating")
+            logging.info("Success in rotating")
             return
-    logger.error("failure in rotating")
+    logging.error("failure in rotating")
     sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key - {secret_id}")
     raise ClientError
 
@@ -102,26 +102,26 @@ def revoke_old_access_keys(secret_id, token, username):
 def disable_key(access_key, username):
     try:
         iam_client.update_access_key(UserName=username, AccessKeyId=access_key, Status="Inactive")
-        logger.info(access_key + " has been disabled.")
+        logging.info(access_key + " has been disabled.")
     except Exception as e:
-        logger.error(f"Error disabling key {access_key} - continuing")
+        logging.error(f"Error disabling key {access_key} - continuing")
         sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key - error disabling key - {username} - {access_key} - {str(e)}")
 
 
 def delete_key(access_key, username):
     try:
         iam_client.delete_access_key(UserName=username, AccessKeyId=access_key)
-        logger.info(access_key + " has been deleted.")
+        logging.info(access_key + " has been deleted.")
     except Exception as e:
-        logger.error(f"Error deleting key {access_key} - continuing")
+        logging.error(f"Error deleting key {access_key} - continuing")
         sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key - error deleting key - {username} - {access_key} - {str(e)}")
 
 
 def send_email(username, domain):
     try:
         dest_address = username + domain
-        link = 'https://ap-southeast-2.console.aws.amazon.com/secretsmanager/home?region=ap-southeast-2'
-        ses_client.send_email(Source='jeremyritchie1996@hotmail.com',
+        link = f'https://console.aws.amazon.com/secretsmanager/home'
+        ses_client.send_email(Source=os.environ['source_email'],
             Destination={
                 'ToAddresses': [
                     dest_address,
@@ -139,10 +139,10 @@ def send_email(username, domain):
                     }
                 }
             })
-        logger.info("Email sucessfully sent!")
+        logging.info("Email sucessfully sent!")
     except Exception as e:
-        logger.error("Email not sent sucessfully.")
-        logger.error(str(e))
+        logging.error("Email not sent sucessfully.")
+        logging.error(str(e))
         sns_client.publish(TopicArn=os.environ['sns_topic_arn'], Message=f"Error rotating key - error sending email - {username} - {str(e)}")
 
 def check_current_secret(user, secret_id, secret_stage):
@@ -159,18 +159,18 @@ def check_current_secret(user, secret_id, secret_stage):
                     pending_access_key = secrets_client.get_secret_value(SecretId=secret_id, VersionStage='AWSPENDING')
                     for current_iam_key in user_keys:
                         if current_iam_key['AccessKeyId'] == json.loads(pending_access_key['SecretString'])['access_key_id']:
-                            logger.info('Access key and pending secret match... skip createSecret stage')
+                            logging.info('Access key and pending secret match... skip createSecret stage')
                             return False
-                    logger.error('Access key and pending secret DO NOT match...')
+                    logging.error('Access key and pending secret DO NOT match...')
                     raise RuntimeError('Access key and pending secret DO NOT match...')
 
         elif len(secret_versions) <= 2: # Normal operation
             # Check number of access keys on user ~~~~~~~~~~~~
             if len(user_keys) == 1:
-                logger.info("User has 1 access key currently")
+                logging.info("User has 1 access key currently")
             elif len(user_keys) == 2:
                 # Delete key that is not in the secret
-                logger.info("User has 2 access key currently - deleting any not in the current secret")
+                logging.info("User has 2 access key currently - deleting any not in the current secret")
                 for key in user_keys:
                     if key['AccessKeyId'] != access_key_id:
                         delete_key(access_key=key['AccessKeyId'], username=user)
@@ -184,7 +184,7 @@ def lambda_handler(event, context):
     token = event['ClientRequestToken']
     username = secret_id.split('/')[-1].split('-')[0] # /access-key/jeremy.ritchie-823234
 
-    logger.info(f"Stage: {secret_stage}, username: {username}, Token: {token}")
+    logging.info(f"Stage: {secret_stage}, username: {username}, Token: {token}")
 
 
     if check_current_secret(username, secret_id, secret_stage):

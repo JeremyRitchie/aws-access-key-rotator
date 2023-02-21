@@ -1,25 +1,42 @@
+# AWS Access Key Rotator
 
-# Welcome to your CDK Python project!
+This is repo is intended to be widely reused as a solution to automatically rotating IAM User Access Keys.
 
+Read more about this repo and how you can best use it here: https://jeremyritchie.com/posts/11/
 
+## Architecture
 
-aws secretsmanager delete-secret --secret-id <arn> --force-delete-without-recovery --profile personal
+![](/Secret-Rotation.png?raw=true)
 
-This is a blank project for CDK development with Python.
+## Lambda Logic
+
+![](/secrets-manager-rotation-architecture.png?raw=true)
+
+## Prerequisites
+
+* Python3
+* AWS CDK Toolkit (CLI)
+  ```sh
+  npm install -g aws-cdk
+  ```
+
+## How to use
+
+`env_config.py` contains most parameters you would want to adjust. When customizing, go there first.
+
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
-This project is set up like a standard Python project.  The initialization
-process also creates a virtualenv within this project, stored under the `.venv`
-directory.  To create the virtualenv it assumes that there is a `python3`
-(or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
+This project is set up like a standard Python project.  The initialization process also creates
+a virtualenv within this project, stored under the .venv directory.  To create the virtualenv
+it assumes that there is a `python3` executable in your path with access to the `venv` package.
+If for any reason the automatic creation of the virtualenv fails, you can create the virtualenv
+manually once the init process completes.
 
 To manually create a virtualenv on MacOS and Linux:
 
 ```
-$ python -m venv .venv
+$ python3 -m venv .venv
 ```
 
 After the init process completes and the virtualenv is created, you can use the following
@@ -46,10 +63,6 @@ At this point you can now synthesize the CloudFormation template for this code.
 ```
 $ cdk synth
 ```
-
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
 
 ## Useful commands
 

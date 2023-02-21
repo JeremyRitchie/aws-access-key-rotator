@@ -1,4 +1,5 @@
 from aws_cdk import (
+    Stack,
     Duration,
     SecretValue,
     Stack,
@@ -15,17 +16,20 @@ class AwsAccessKeyRotatorStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        email_source = "jeremyritchie1996@hotmail.com"
+        domain = "@caylent.com"
+
         # SES
         ses.EmailIdentity(
             self,
-            "WorkIdentity",
+            "UserIdentity",
             identity=ses.Identity.email("jeremy.ritchie@caylent.com"),
         )
 
         ses.EmailIdentity(
             self,
-            "PersonalIdentity",
-            identity=ses.Identity.email("jeremyritchie1996@hotmail.com"),
+            "EmailSource",
+            identity=ses.Identity.email(email_source),
         )
 
         # SNS
@@ -40,7 +44,7 @@ class AwsAccessKeyRotatorStack(Stack):
             "admin",
             topic=topic,
             protocol=sns.SubscriptionProtocol.EMAIL,
-            endpoint="jeremyritchie1996@hotmail.com"
+            endpoint=email_source
         )
 
         # Lambda
@@ -53,10 +57,33 @@ class AwsAccessKeyRotatorStack(Stack):
                 iam.ManagedPolicy.from_aws_managed_policy_name(
                 "service-role/AWSLambdaBasicExecutionRole"
                 ),
-                 iam.ManagedPolicy.from_aws_managed_policy_name(
-                "AdministratorAccess"
+                iam.ManagedPolicy.from_aws_managed_policy_name(
+                "SecretsManagerReadWrite"
                 ),
+                iam.ManagedPolicy.from_aws_managed_policy_name(
+                "IAMFullAccess"
+                )
             ],
+            inline_policies={
+                "SES": iam.PolicyDocument(
+                    statements=[
+                        iam.PolicyStatement(
+                            actions=["ses:SendEmail"],
+                            effect=iam.Effect.ALLOW,
+                            resources = ["*"]
+                        )
+                    ]
+                ),
+                "SNS": iam.PolicyDocument(
+                    statements=[
+                        iam.PolicyStatement(
+                            actions=["sns:Publish"],
+                            effect=iam.Effect.ALLOW,
+                            resources = [topic.topic_arn]
+                        )
+                    ]
+                )
+            }
         )
 
         function = lambda_.Function(
@@ -69,7 +96,9 @@ class AwsAccessKeyRotatorStack(Stack):
             role=lambda_role,
             environment={
                 "sns_topic_arn": topic.topic_arn,
-                "email_domain": "@caylent.com"},
+                "source_email": email_source,
+                "email_domain": domain
+            },
             timeout=Duration.seconds(30)
         )
 
