@@ -2,7 +2,7 @@
 
 This is repo is intended to be widely reused as a solution to automatically rotating IAM User Access Keys.
 
-Read more about this repo and how you can best use it here: https://jeremyritchie.com/posts/11/
+Read more about this repo and how you can best use it here: https://jeremyritchie.com/posts/9/
 
 ## Prerequisites
 
